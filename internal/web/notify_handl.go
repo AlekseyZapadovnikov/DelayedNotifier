@@ -3,11 +3,10 @@ package web
 import (
 	"context"
 	"encoding/json"
-	"io"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/AlekseyZapadovnikov/DelayedNotifier/internal/models"
@@ -15,104 +14,70 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-type postCreateNotifyRequest struct {
-	msg      string    `json:"message"`
-	date     time.Time `json:"dateTime"`
-	SendChan string    `json:"sendChan"`
-	from     string    `json:"from"`
-	To       []string  `json:"to"`
+type PostCreateNotifyRequest struct {
+	Msg      string    `json:"message" validate:"required"`
+	Date     time.Time `json:"dateTime" validate:"required,gt=now"`
+	SendChan string    `json:"sendChan" validate:"required,oneof=tg mail"`
+	From     string    `json:"from" validate:"required,from_field"`
+	To       []string  `json:"to" validate:"required,min=1,to_field"`
 }
 
 func (s *Server) createNotify(w http.ResponseWriter, r *http.Request) {
-	bodyData, err := io.ReadAll(r.Body)
-	if err != nil {
-		slog.Error("culdn`t read data drom request body",
-			"err", err,
-			"method", r.Method,
-			"path", r.URL.Path)
-		http.Error(w, "Bad Request: failed to read request body", http.StatusBadRequest)
-		return
-	}
+	var reqStruct PostCreateNotifyRequest
 
-	var reqStruct postCreateNotifyRequest
-	if err := json.Unmarshal(bodyData, reqStruct); err != nil {
-		slog.Error("culdn`t unmurshal data drom request body", "err", err)
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&reqStruct); err != nil {
+		slog.Error("couldn`t unmarshal data from request body",
+			"method", r.Method,
+			"url", r.URL.String(),
+			"err", err,
+		)
 		http.Error(w, "Bad Request: failed to understand your request", http.StatusBadRequest)
 		return
 	}
 
-	if reqStruct.msg == "" {
-		slog.Error("empty msg field in createNotify",
+	if err := valid.Validate.Struct(reqStruct); err != nil {
+		slog.Error("validation failed",
 			"method", r.Method,
-			"path", r.URL.Path)
-		http.Error(w, "empty msg field in createNotify", http.StatusBadRequest)
-		return
-	}
-
-	if reqStruct.date.IsZero() || reqStruct.date.Before(time.Now()) {
-		slog.Error("invalid date field in createNotify",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"date", reqStruct.date,
+			"url", r.URL,
+			"err", err,
 		)
-		http.Error(w, "invalid date field in createNotify, date should be in future", http.StatusBadRequest)
-		return
-	}
 
-	if !valid.ValidateEmailOrTg(reqStruct.from) {
-		slog.Error("invalid from field",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"fromField", reqStruct.from,
-		)
-		http.Error(w, "invalid from field in createNotify, it should be valid email or tg username", http.StatusBadRequest)
-		return
-	}
-
-	// вот тут, нормально ли, что я захардкодил?
-	if reqStruct.SendChan != "tg" && reqStruct.SendChan != "mail" {
-		slog.Error("invalid SendChan field in createNotify",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"SendChan", reqStruct.SendChan)
-		http.Error(w, "invalid SendChan field in createNotify, it may be only one of (tg, mail)", http.StatusBadRequest)
+		msgForUser := valid.RecordValidationDescription(err) // получаем читаемое сообщение об ошибке для пользователя
+		http.Error(w, fmt.Sprintf("Validation error: %s", msgForUser), http.StatusBadRequest)
 		return
 	}
 
 	record := models.Record{
-		Data:     []byte(reqStruct.msg),
-		SendTime: reqStruct.date,
+		Data:     []byte(reqStruct.Msg),
+		SendTime: reqStruct.Date,
 		RecStat:  models.RecordStatusWaiting,
 		SendChan: reqStruct.SendChan,
 		To:       reqStruct.To,
 	}
 
-	err = s.service.CreateNotify(context.Background(), record)
+	err := s.service.CreateNotify(r.Context(), record)
 	if err != nil {
 		slog.Error("couldn`t create Notify", "error", err.Error())
 		http.Error(w, "couldn`t create Notify, try again", http.StatusInternalServerError)
 		return
 	}
+
+	w.WriteHeader(http.StatusCreated)
 }
 
 func (s *Server) getNotifyStatByID(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 
-	if strings.TrimSpace(idStr) == "" {
-		slog.Error("empty id in getNotifyStatByID",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"id", idStr)
-		http.Error(w, "got request with empty id", http.StatusBadRequest)
-		return
-	}
-
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		slog.Error("invalid id format in getNotifyStatByID",
+		slog.Error("invalid id format",
 			"method", r.Method,
-			"path", r.URL.Path,
-			"id", idStr)
+			"url", r.URL,
+			"input value", idStr,
+			"error", err,
+		)
 		http.Error(w, "invalid id format, id should be a number", http.StatusBadRequest)
 		return
 	}
@@ -130,26 +95,19 @@ func (s *Server) getNotifyStatByID(w http.ResponseWriter, r *http.Request) {
 func (s *Server) deleteNotifyByID(w http.ResponseWriter, r *http.Request) {
 	idStr := chi.URLParam(r, "id")
 
-	if strings.TrimSpace(idStr) == "" {
-		slog.Error("empty id in deleteNotifyByID",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"id", idStr)
-		http.Error(w, "got request with empty id", http.StatusBadRequest)
-		return
-	}
-
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		slog.Error("invalid id format in deleteNotifyByID",
+		slog.Error("invalid id format",
 			"method", r.Method,
-			"path", r.URL.Path,
-			"id", idStr)
+			"url", r.URL,
+			"input value", idStr,
+			"error", err,
+		)
 		http.Error(w, "invalid id format, id should be a number", http.StatusBadRequest)
 		return
 	}
 
-	err = s.service.DeleteNotifyByID(context.Background(), id)
+	err = s.service.DeleteNotifyByID(r.Context(), id)
 	if err != nil {
 		slog.Error("couldn`t delete notify by ID",
 			"error", err.Error(),
