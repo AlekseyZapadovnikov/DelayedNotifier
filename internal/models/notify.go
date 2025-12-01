@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/AlekseyZapadovnikov/DelayedNotifier/tools"
+	"github.com/AlekseyZapadovnikov/DelayedNotifier/internal/valid"
 	"github.com/go-playground/validator/v10"
 )
 
 var Validate *validator.Validate
 
 func init() {
-	Validate = validator.New()
+	Validate = valid.Validate
 }
 
 type Record struct {
@@ -20,9 +20,9 @@ type Record struct {
 	SendTime time.Time
 	RecStat  string   `validate:"oneof=sended waiting redused"`
 	SendChan string   `validate:"oneof=tg mail"`
-	From     string   `validate: validate_from_field`
-	To       []string `validate: validate_to_field`
-	Subject  string   `validate: len<200`
+	From     string   `validate:"from_field"`
+	To       []string `validate:"to_field"`
+	Subject  string   `validate:"len<200"`
 }
 
 func NewRecord(id int64, data []byte, sendTime time.Time, subject, sendChan, from string, to []string) *Record {
@@ -30,7 +30,7 @@ func NewRecord(id int64, data []byte, sendTime time.Time, subject, sendChan, fro
 		id:       id,
 		Data:     data,
 		SendTime: sendTime,
-		RecStat:  "waiting",
+		RecStat:  RecordStatusWaiting,
 		SendChan: sendChan,
 		From:     from,
 		To:       to,
@@ -47,22 +47,10 @@ func (r *Record) SetStatus(newStatus string) error {
 	return nil
 }
 
-// ---- Валидаторы ----
+const (
+	RecordStatusSended  = "sended"
+	RecordStatusWaiting = "waiting"
+	RecordStatusRedused = "redused"
+)
 
-// проверяет валидность адресов/userna`ов, на которые отправляются сооющения
-func validateToField(fl validator.FieldLevel) bool {
-	field := fl.Field()
-	for i := 0; i < field.Len(); i++ {
-		el := field.Index(i).String()
-		if !tools.ValidateEmailOrTg(el) {
-			return false
-		}
-	}
-	return true
-}
 
-// проверяет на валидность tg или email
-func validateFromField(fl validator.FieldLevel) bool {
-	value := fl.Field().String()
-	return tools.ValidateEmailOrTg(value)
-}

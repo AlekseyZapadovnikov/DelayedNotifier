@@ -1,12 +1,13 @@
 package web
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
-	"path/filepath"
 
-	// Заменяем импорты chi на импорт вашей обертки ginext
-	"github.com/wb-go/wbf/ginext" // <-- УКАЖИТЕ ПРАВИЛЬНЫЙ ПУТЬ К ПАКЕТУ ginext
+	"github.com/AlekseyZapadovnikov/DelayedNotifier/internal/models"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 type Configer interface {
@@ -14,25 +15,30 @@ type Configer interface {
 	GetStaticFilesPath() string
 }
 
-type RecordService interface{}
+type NotifydService interface {
+	CreateNotify(ctx context.Context, record models.Record) error
+	GetNotifyStatByID(ctx context.Context, id int64) error
+	DeleteNotifyByID(ctx context.Context, id int64) error
+}
 
 type Server struct {
 	adress     string
 	staticPath string
 	httpServer *http.Server
-	router     *ginext.Engine
-	service    RecordService
+	router     *chi.Mux
+	service    NotifydService
 }
 
-func NewServer(c Configer, serv RecordService) *Server {
+func NewServer(c Configer, serv NotifydService) *Server {
 	adr := c.GetServerAddress()
 	sp := c.GetStaticFilesPath()
 
-	r := ginext.New("") // CHECK
+	// Создаём роутер с помощью chi
+	r := chi.NewRouter()
 
 	httpServ := &http.Server{
 		Addr:    adr,
-		Handler: r, 
+		Handler: r,
 	}
 
 	srv := &Server{
@@ -48,20 +54,20 @@ func NewServer(c Configer, serv RecordService) *Server {
 
 func (s *Server) Start() error {
 	s.routs()
-	slog.Info("server was started by adress", "addres", s.adress)
-	// Метод ListenAndServe остается стандартным, так как он часть http.Server
+	slog.Info("server was started by address", "address", s.adress)
 	return s.httpServer.ListenAndServe()
 }
 
 func (s *Server) routs() {
-	router := s.router
+	// Используем встроенные middleware chi
+	s.router.Use(middleware.Logger)    // логирование запросов
+	s.router.Use(middleware.Recoverer) // восстановление после паник
 
-	router.Use(ginext.Logger(), ginext.Recovery()) // Используем middleware
-	router.Engine.StaticFS("/", http.Dir(s.staticPath)) // отдаём статические файлы
+	// Отдаём статические файлы
+	fileServer := http.StripPrefix("/", http.FileServer(http.Dir(s.staticPath)))
+	s.router.Handle("/*", fileServer)
 
-	// на непонятные запросы отдаём index.html
-	router.Engine.NoRoute(func(c *ginext.Context) {
-		slog.Info("Fallback to index.html", "requested", c.Request.URL.Path)
-		c.File(filepath.Join(s.staticPath, "index.html"))
-	})
+	s.router.Post("/notify", s.createNotify)
+	s.router.Get("/notify/{id}/", s.getNotifyStatByID)
+	s.router.Delete("/notify/{id}/", s.deleteNotifyByID)
 }
