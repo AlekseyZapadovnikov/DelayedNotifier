@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DelayedNotifier</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <main class="container">
+        <h1>DelayedNotifier</h1>
+
+        <form id="notificationForm" class="card">
+            <h2>Create notification</h2>
+
+            <div class="form-group">
+                <label for="message">Message</label>
+                <input type="text" id="message" name="message" placeholder="Reminder text" required>
+            </div>
+
+            <div class="form-group">
+                <label for="send_at">Send at</label>
+                <input type="datetime-local" id="send_at" name="send_at" required>
+            </div>
+
+            <div class="form-group">
+                <label for="sendChan">Channel</label>
+                <select id="sendChan" name="sendChan" required>
+                    <option value="mail" selected>mail</option>
+                    <option value="tg">tg</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="to">To (comma-separated)</label>
+                <input type="text" id="to" name="to" placeholder="user@example.com, user2@example.com" required>
+            </div>
+
+            <button type="submit">Schedule</button>
+        </form>
+
+        <section class="card">
+            <h2>Scheduled notifications</h2>
+            <div id="notificationsList"></div>
+        </section>
+    </main>
+
+    <script src="main.js"></script>
+</body>
+</html>

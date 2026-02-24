@@ -1,0 +1,148 @@
+/* Глобальные стили и переменные */
+:root {
+    --primary-color: #007bff;
+    --light-gray: #f8f9fa;
+    --border-color: #dee2e6;
+    --success-color: #28a745;
+    --warning-color: #ffc107;
+    --danger-color: #dc3545;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background-color: var(--light-gray);
+    color: #333;
+    margin: 0;
+    padding: 20px;
+}
+
+.container {
+    max-width: 700px;
+    margin: 0 auto;
+}
+
+h1, h2 {
+    color: #343a40;
+}
+
+/* Стили для карточек */
+.card {
+    background-color: #ffffff;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+/* Стили для формы */
+.form-group {
+    margin-bottom: 15px;
+}
+
+label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+}
+
+input[type="text"],
+input[type="datetime-local"],
+select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    box-sizing: border-box; /* Чтобы padding не влиял на общую ширину */
+}
+
+button {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.2s;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+
+/* Стили для списка уведомлений */
+.notification-item {
+    padding: 15px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+}
+
+.notification-item:last-child {
+    border-bottom: none;
+}
+
+.notification-item p {
+    margin: 0;
+}
+
+.notification-item .message {
+    font-weight: bold;
+}
+
+.notification-content {
+    min-width: 0;
+}
+
+.notification-content small {
+    display: block;
+}
+
+.notification-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.notification-delete {
+    background-color: #fff;
+    color: var(--danger-color);
+    border: 1px solid var(--danger-color);
+    padding: 6px 10px;
+    font-size: 13px;
+}
+
+.notification-delete:hover:not(:disabled) {
+    background-color: #fff3f3;
+}
+
+.notification-delete:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Стили для статусов */
+.status {
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+    text-transform: uppercase;
+    color: white;
+}
+
+.status-pending { background-color: var(--warning-color); }
+.status-sent { background-color: var(--success-color); }
+.status-cancelled {
+    background-color: var(--danger-color);
+    text-decoration: line-through;
+}
+.status-waiting { background-color: var(--warning-color); }
+.status-sended { background-color: var(--success-color); }
+.status-redused {
+    background-color: var(--danger-color);
+    text-decoration: line-through;
+}
