@@ -1,0 +1,21 @@
+.git
+.gitignore
+.gocache
+.gocache_*
+coverage
+*.log
+tmp
+bin
+dist
+
+# Local environment and tooling files
+.env
+.env.*
+
+# IDE
+.idea
+.vscode
+
+# Documentation / misc
+TODOLIST
+CLAUDE.md

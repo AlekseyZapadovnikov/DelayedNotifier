@@ -1,121 +1,193 @@
-// Ждем, пока весь HTML-документ будет загружен и готов к взаимодействию
 document.addEventListener('DOMContentLoaded', () => {
-
-    // Находим ключевые элементы на странице
     const form = document.getElementById('notificationForm');
     const messageInput = document.getElementById('message');
     const sendAtInput = document.getElementById('send_at');
+    const sendChanInput = document.getElementById('sendChan');
+    const toInput = document.getElementById('to');
     const notificationsList = document.getElementById('notificationsList');
+    const FINAL_STATUSES = new Set(['sended', 'redused']);
 
-    // --- 1. Обработка отправки формы для создания уведомления ---
+    if (!form || !notificationsList) {
+        return;
+    }
+
     form.addEventListener('submit', async (event) => {
-        // Предотвращаем стандартное поведение формы (перезагрузку страницы)
         event.preventDefault();
 
-        // Собираем данные из полей ввода
-        const message = messageInput.value;
-        const sendAt = sendAtInput.value;
+        const message = messageInput?.value.trim() ?? '';
+        const sendAt = sendAtInput?.value ?? '';
+        const sendChan = sendChanInput?.value ?? '';
+        const to = (toInput?.value ?? '')
+            .split(',')
+            .map((value) => value.trim())
+            .filter(Boolean);
 
-        // Простая валидация
-        if (!message || !sendAt) {
-            alert('Пожалуйста, заполните все поля.');
+        if (!message || !sendAt || !sendChan || to.length === 0) {
+            alert('Fill in all fields.');
             return;
         }
 
+        const payload = {
+            message,
+            dateTime: new Date(sendAt).toISOString(),
+            sendChan,
+            to,
+        };
+
         try {
-            // Отправляем POST-запрос на сервер с помощью fetch API
             const response = await fetch('/notify', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                // Преобразуем данные в JSON-строку
-                body: JSON.stringify({
-                    message: message,
-                    // Приводим дату к стандартному формату ISO, который понимают большинство серверов
-                    send_at: new Date(sendAt).toISOString(),
-                }),
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
             });
 
             if (!response.ok) {
-                // Если сервер ответил ошибкой, выбрасываем исключение
-                throw new Error(`Ошибка сервера: ${response.status}`);
+                const errorText = await safeReadText(response);
+                throw new Error(errorText || `Server error: ${response.status}`);
             }
 
-            // Получаем созданное уведомление из ответа сервера
-            const newNotification = await response.json();
-            
-            // Добавляем новое уведомление в список на странице
-            addNotificationToDOM(newNotification);
+            const created = await safeReadJSON(response);
+            addNotificationToDOM({
+                id: created?.id ?? `local-${Date.now()}`,
+                message: created?.message ?? message,
+                dateTime: created?.dateTime ?? payload.dateTime,
+                status: created?.status ?? 'waiting',
+                sendChan: created?.sendChan ?? sendChan,
+                to: created?.to ?? to,
+            });
 
-            // Очищаем форму
             form.reset();
-
         } catch (error) {
-            console.error('Ошибка при создании уведомления:', error);
-            alert('Не удалось создать уведомление. Проверьте консоль для деталей.');
+            console.error('Failed to create notification:', error);
+            alert(`Failed to create notification: ${error.message}`);
         }
     });
 
+    notificationsList.addEventListener('click', async (event) => {
+        const button = event.target.closest('.notification-delete');
+        if (!button || button.disabled) {
+            return;
+        }
 
-    // --- 2. Функция для добавления элемента уведомления на страницу ---
+        const item = button.closest('.notification-item');
+        const id = item?.dataset.notificationId;
+        if (!item || !id || item.dataset.trackable !== 'true') {
+            return;
+        }
+
+        button.disabled = true;
+        button.textContent = 'Deleting...';
+
+        try {
+            const response = await fetch(`/notify/${id}/`, { method: 'DELETE' });
+            if (!response.ok) {
+                const errorText = await safeReadText(response);
+                throw new Error(errorText || `Delete failed: ${response.status}`);
+            }
+
+            item.remove();
+        } catch (error) {
+            console.error(`Failed to delete notification ${id}:`, error);
+            alert(`Failed to delete notification: ${error.message}`);
+            button.disabled = false;
+            button.textContent = 'Delete';
+        }
+    });
+
     function addNotificationToDOM(notification) {
-        // Создаем новый div для уведомления
         const item = document.createElement('div');
         item.className = 'notification-item';
-        // Устанавливаем ID, чтобы легко находить и обновлять этот элемент
-        item.id = `notification-${notification.id}`;
 
-        // Форматируем дату для более читаемого вида
-        const sendTime = new Date(notification.send_at).toLocaleString();
+        const id = String(notification.id ?? `local-${Date.now()}`);
+        const status = String(notification.status ?? 'waiting');
+        const sendTimeRaw = notification.dateTime ?? notification.send_at;
+        const sendTime = sendTimeRaw ? new Date(sendTimeRaw).toLocaleString() : 'unknown';
+        const isTrackable = /^\d+$/.test(id);
 
-        // Заполняем HTML-содержимое элемента
+        item.dataset.notificationId = id;
+        item.dataset.trackable = String(isTrackable);
+
         item.innerHTML = `
-            <div>
-                <p class="message">${notification.message}</p>
-                <small>Отправить: ${sendTime}</small>
+            <div class="notification-content">
+                <p class="message">${escapeHtml(notification.message ?? '')}</p>
+                <small>Send at: ${escapeHtml(sendTime)}</small>
+                ${isTrackable ? '' : '<small> (status polling disabled: server did not return id)</small>'}
             </div>
-            <span class="status status-${notification.status}">${notification.status}</span>
+            <div class="notification-meta">
+                <span class="status status-${escapeHtml(status)}">${escapeHtml(status)}</span>
+                <button type="button" class="notification-delete" ${isTrackable ? '' : 'disabled'}>Delete</button>
+            </div>
         `;
 
-        // Добавляем новый элемент в начало списка
         notificationsList.prepend(item);
     }
 
-
-    // --- 3. Периодическое обновление статусов существующих уведомлений ---
     async function updateStatuses() {
-        // Находим все элементы уведомлений на странице
-        const items = document.querySelectorAll('.notification-item');
+        const items = notificationsList.querySelectorAll('.notification-item');
 
         for (const item of items) {
-            const id = item.id.split('-')[1];
-            const statusElement = item.querySelector('.status');
+            if (item.dataset.trackable !== 'true') {
+                continue;
+            }
 
-            // Пропускаем обновление финальных статусов, чтобы не делать лишних запросов
-            if (statusElement.textContent === 'sent' || statusElement.textContent === 'cancelled') {
+            const id = item.dataset.notificationId;
+            const statusElement = item.querySelector('.status');
+            if (!id || !statusElement) {
+                continue;
+            }
+
+            const currentStatus = statusElement.textContent.trim();
+            if (FINAL_STATUSES.has(currentStatus)) {
                 continue;
             }
 
             try {
-                // Отправляем GET-запрос для получения актуального статуса
-                const response = await fetch(`/notify/${id}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    
-                    // Обновляем текст и класс статуса, если он изменился
-                    if (statusElement.textContent !== data.status) {
-                        statusElement.textContent = data.status;
-                        statusElement.className = `status status-${data.status}`;
-                    }
+                const response = await fetch(`/notify/${id}/`);
+                if (!response.ok) {
+                    continue;
                 }
+
+                const nextStatus = (await response.text()).trim();
+                if (!nextStatus || currentStatus === nextStatus) {
+                    continue;
+                }
+
+                statusElement.textContent = nextStatus;
+                statusElement.className = `status status-${nextStatus}`;
             } catch (error) {
-                // Ошибки обновления одного элемента не должны ломать весь цикл
-                console.error(`Ошибка при обновлении статуса для ID ${id}:`, error);
+                console.error(`Failed to update status for ID ${id}:`, error);
             }
         }
     }
 
-    // Запускаем функцию обновления статусов каждые 5 секунд (5000 миллисекунд)
     setInterval(updateStatuses, 5000);
 });
+
+async function safeReadText(response) {
+    try {
+        return (await response.text()).trim();
+    } catch {
+        return '';
+    }
+}
+
+async function safeReadJSON(response) {
+    try {
+        const text = await response.text();
+        if (!text.trim()) {
+            return null;
+        }
+        return JSON.parse(text);
+    } catch {
+        return null;
+    }
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+}

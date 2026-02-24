@@ -1,25 +1,35 @@
 package web
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
+
+	"github.com/go-chi/chi/v5"
 
 	"github.com/AlekseyZapadovnikov/DelayedNotifier/internal/models"
 	"github.com/AlekseyZapadovnikov/DelayedNotifier/internal/valid"
-	"github.com/go-chi/chi/v5"
 )
 
 type PostCreateNotifyRequest struct {
 	Msg      string    `json:"message" validate:"required"`
 	Date     time.Time `json:"dateTime" validate:"required,gt=now"`
 	SendChan string    `json:"sendChan" validate:"required,oneof=tg mail"`
-	From     string    `json:"from" validate:"required,from_field"`
+	From     string    `json:"from"`
 	To       []string  `json:"to" validate:"required,min=1,to_field"`
+}
+
+type PostCreateNotifyResponse struct {
+	ID       int64               `json:"id"`
+	Message  string              `json:"message"`
+	DateTime time.Time           `json:"dateTime"`
+	Status   models.RecordStatus `json:"status"`
+	SendChan string              `json:"sendChan"`
+	To       []string            `json:"to"`
 }
 
 func (s *Server) createNotify(w http.ResponseWriter, r *http.Request) {
@@ -43,7 +53,6 @@ func (s *Server) createNotify(w http.ResponseWriter, r *http.Request) {
 			"url", r.URL,
 			"err", err,
 		)
-
 		msgForUser := valid.RecordValidationDescription(err) // получаем читаемое сообщение об ошибке для пользователя
 		http.Error(w, fmt.Sprintf("Validation error: %s", msgForUser), http.StatusBadRequest)
 		return
@@ -54,17 +63,36 @@ func (s *Server) createNotify(w http.ResponseWriter, r *http.Request) {
 		SendTime: reqStruct.Date,
 		RecStat:  models.RecordStatusWaiting,
 		SendChan: reqStruct.SendChan,
+		From:     strings.TrimSpace(reqStruct.From),
 		To:       reqStruct.To,
 	}
+	if record.SendChan == models.SendChanMail && strings.TrimSpace(s.defaultFrom) != "" {
+		record.From = s.defaultFrom
+	}
 
-	err := s.service.CreateNotify(r.Context(), record)
+	err := s.service.CreateNotify(r.Context(), &record)
 	if err != nil {
-		slog.Error("couldn`t create Notify", "error", err.Error())
+		slog.Error("couldn`t create Notify",
+			"method", r.Method,
+			"url", r.URL,
+			"error", err,
+		)
 		http.Error(w, "couldn`t create Notify, try again", http.StatusInternalServerError)
 		return
 	}
 
+	resp := PostCreateNotifyResponse{
+		ID:       record.Id,
+		Message:  reqStruct.Msg,
+		DateTime: record.SendTime,
+		Status:   record.RecStat,
+		SendChan: record.SendChan,
+		To:       append([]string(nil), record.To...),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 func (s *Server) getNotifyStatByID(w http.ResponseWriter, r *http.Request) {
@@ -82,14 +110,20 @@ func (s *Server) getNotifyStatByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.service.GetNotifyStatByID(context.Background(), id)
+	status, err := s.service.GetNotifyStatByID(r.Context(), id)
 	if err != nil {
 		slog.Error("couldn`t get notify stat by ID",
-			"error", err.Error(),
-			"id", id)
+			"method", r.Method,
+			"url", r.URL,
+			"id", id,
+			"error", err,
+		)
 		http.Error(w, "couldn`t get notify stat by ID", http.StatusInternalServerError)
 		return
 	}
+
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(status))
 }
 
 func (s *Server) deleteNotifyByID(w http.ResponseWriter, r *http.Request) {
@@ -110,8 +144,11 @@ func (s *Server) deleteNotifyByID(w http.ResponseWriter, r *http.Request) {
 	err = s.service.DeleteNotifyByID(r.Context(), id)
 	if err != nil {
 		slog.Error("couldn`t delete notify by ID",
-			"error", err.Error(),
-			"id", id)
+			"method", r.Method,
+			"url", r.URL,
+			"id", id,
+			"error", err,
+		)
 		http.Error(w, "couldn`t delete notify by ID", http.StatusInternalServerError)
 		return
 	}

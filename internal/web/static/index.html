@@ -3,42 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Сервис Уведомлений</title>
-    <!-- Подключаем файл со стилями -->
+    <title>DelayedNotifier</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
     <main class="container">
-        <h1>Сервис Уведомлений</h1>
+        <h1>DelayedNotifier</h1>
 
-        <!-- Форма для создания нового уведомления -->
         <form id="notificationForm" class="card">
-            <h2>Создать новое уведомление</h2>
-            
+            <h2>Create notification</h2>
+
             <div class="form-group">
-                <label for="message">Текст сообщения:</label>
-                <input type="text" id="message" name="message" placeholder="Напомнить о встрече" required>
+                <label for="message">Message</label>
+                <input type="text" id="message" name="message" placeholder="Reminder text" required>
             </div>
-            
+
             <div class="form-group">
-                <label for="send_at">Дата и время отправки:</label>
+                <label for="send_at">Send at</label>
                 <input type="datetime-local" id="send_at" name="send_at" required>
             </div>
-            
-            <button type="submit">Запланировать</button>
+
+            <div class="form-group">
+                <label for="sendChan">Channel</label>
+                <select id="sendChan" name="sendChan" required>
+                    <option value="mail" selected>mail</option>
+                    <option value="tg">tg</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="to">To (comma-separated)</label>
+                <input type="text" id="to" name="to" placeholder="user@example.com, user2@example.com" required>
+            </div>
+
+            <button type="submit">Schedule</button>
         </form>
 
-        <!-- Секция для отображения списка текущих уведомлений -->
         <section class="card">
-            <h2>Запланированные уведомления</h2>
-            <div id="notificationsList">
-                <!-- Уведомления будут добавлены сюда с помощью JavaScript -->
-            </div>
+            <h2>Scheduled notifications</h2>
+            <div id="notificationsList"></div>
         </section>
     </main>
 
-    <!-- Подключаем JavaScript в конце тела, чтобы страница загрузилась быстрее -->
     <script src="main.js"></script>
 </body>
 </html>

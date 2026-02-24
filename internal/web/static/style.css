@@ -47,7 +47,8 @@ label {
 }
 
 input[type="text"],
-input[type="datetime-local"] {
+input[type="datetime-local"],
+select {
     width: 100%;
     padding: 10px;
     border: 1px solid var(--border-color);
@@ -77,6 +78,7 @@ button:hover {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 16px;
 }
 
 .notification-item:last-child {
@@ -89,6 +91,37 @@ button:hover {
 
 .notification-item .message {
     font-weight: bold;
+}
+
+.notification-content {
+    min-width: 0;
+}
+
+.notification-content small {
+    display: block;
+}
+
+.notification-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.notification-delete {
+    background-color: #fff;
+    color: var(--danger-color);
+    border: 1px solid var(--danger-color);
+    padding: 6px 10px;
+    font-size: 13px;
+}
+
+.notification-delete:hover:not(:disabled) {
+    background-color: #fff3f3;
+}
+
+.notification-delete:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 /* Стили для статусов */
@@ -104,6 +137,12 @@ button:hover {
 .status-pending { background-color: var(--warning-color); }
 .status-sent { background-color: var(--success-color); }
 .status-cancelled {
+    background-color: var(--danger-color);
+    text-decoration: line-through;
+}
+.status-waiting { background-color: var(--warning-color); }
+.status-sended { background-color: var(--success-color); }
+.status-redused {
     background-color: var(--danger-color);
     text-decoration: line-through;
 }

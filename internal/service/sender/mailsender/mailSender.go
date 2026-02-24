@@ -1,13 +1,15 @@
-package sender
+package mailsend
 
 import (
 	"fmt"
 	"log/slog"
-	"os"
 	"strconv"
 	"strings"
 
+	"github.com/AlekseyZapadovnikov/DelayedNotifier/config"
 	"github.com/AlekseyZapadovnikov/DelayedNotifier/internal/models"
+	"github.com/AlekseyZapadovnikov/DelayedNotifier/internal/service/sender/serr"
+
 	"gopkg.in/gomail.v2"
 )
 
@@ -16,16 +18,11 @@ type EmailSender struct {
 }
 
 // NewEmailSender создает новый экземпляр Email отправителя
-func NewEmailSender(smtpHost, smtpPort, smtpUser, smtpPassword string) (*EmailSender, error) {
-	if strings.TrimSpace(smtpHost) == "" {
-		return nil, fmt.Errorf("smtpHost cannot be empty")
-	}
-	if strings.TrimSpace(smtpPort) == "" {
-		return nil, fmt.Errorf("smtpPort cannot be empty")
-	}
-	if strings.TrimSpace(smtpUser) == "" {
-		return nil, fmt.Errorf("smtpUser cannot be empty")
-	}
+func NewEmailSender(cfg config.EmailSenderConfig) (*EmailSender, error) {
+	smtpHost := strings.TrimSpace(cfg.SMTPHost)
+	smtpPort := strings.TrimSpace(cfg.SMTPPort)
+	smtpUser := strings.TrimSpace(cfg.SMTPUser)
+	smtpPassword := cfg.SMTPPassword
 
 	port, err := strconv.Atoi(smtpPort)
 	if err != nil {
@@ -51,7 +48,10 @@ func (es *EmailSender) SendMessage(record *models.Record) error {
 	}
 
 	if record.SendChan != "mail" {
-		return fmt.Errorf("record is not intended for email sending")
+		return fmt.Errorf("invalid send channel need: %s, got: %s, error = %w", "mail",
+			record.SendChan,
+			serr.ErrUnsupportedSendType,
+		)
 	}
 
 	if es.dialer == nil {
@@ -59,7 +59,11 @@ func (es *EmailSender) SendMessage(record *models.Record) error {
 	}
 
 	// Создаем email сообщение
-	m := es.recordToEmailMessage(record)
+	recordForSend := *record
+	if es.dialer != nil && strings.TrimSpace(es.dialer.Username) != "" {
+		recordForSend.From = es.dialer.Username
+	}
+	m := es.recordToEmailMessage(&recordForSend)
 
 	// Создаем соединение с SMTP сервером
 	sender, err := es.dialer.Dial()
@@ -131,14 +135,4 @@ func (es *EmailSender) recordToEmailMessage(record *models.Record) *gomail.Messa
 	m.SetBody("text/plain; charset=UTF-8", body)
 
 	return m
-}
-
-// NewEmailSenderFromEnv создает EmailSender используя переменные окружения
-func NewEmailSenderFromEnv() (*EmailSender, error) {
-	smtpHost := os.Getenv("smtpHost")
-	smtpPort := os.Getenv("smtpPort")
-	smtpUser := os.Getenv("smtpUser")
-	smtpPassword := os.Getenv("smtpPassword")
-
-	return NewEmailSender(smtpHost, smtpPort, smtpUser, smtpPassword)
 }

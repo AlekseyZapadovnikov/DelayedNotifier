@@ -1,95 +1,61 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/AlekseyZapadovnikov/DelayedNotifier/internal/valid"
 	"github.com/go-playground/validator/v10"
+	"github.com/ilyakaznacheev/cleanenv"
 )
 
-var Validate *validator.Validate = valid.Validate // валидатор в приложении
+var Validate *validator.Validate = valid.Validate
 
 type Config struct {
-	HTTPHost        string `validate:"required,hostname|ip"`
-	HTTPPort        string `validate:"required,valid_port"` // кастомный валидатор
-	StaticFilesPath string `validate:"required"`
-
-	// SMTP
-	SMTPHost     string `validate:"required,hostname|ip"`
-	SMTPPort     string `validate:"required,valid_port"`
-	SMTPUser     string `validate:"required"`
-	SMTPPassword string `validate:"required"`
-
-	// Telegram
-	TgBotToken string `validate:"required,notempty"`
+	HTTP                 HTTPConfig           `validate:"required,dive"`
+	Rabbit               RabbitConfig         `validate:"required,dive"`
+	SMTP                 SMTPConfig           `validate:"dive"`
+	Telegram             TelegramConfig       `validate:"dive"`
+	Notifier             NotificationConfig   `validate:"required,dive"`
+	PostgresConfig       PostgresConfig       `validate:"required,dive"`
+	RedisConfig          RedisConfig          `validate:"required,dive"`
+	EmailSenderConfig    EmailSenderConfig    `validate:"required,dive"`
+	TelegramSenderConfig TelegramSenderConfig `validate:"required,dive"`
 }
 
 func LoadConfig() (*Config, error) {
-	httpHost := os.Getenv("httpHost")
-	if strings.TrimSpace(httpHost) == "" {
-		return nil, fmt.Errorf("httpHost must be set, check .env file")
+	var cfg Config
+
+	if err := readEnvConfig(&cfg); err != nil {
+		return nil, fmt.Errorf("config loading failed: %w", err)
 	}
 
-	httpPort := os.Getenv("httpPort")
-	if strings.TrimSpace(httpPort) == "" {
-		return nil, fmt.Errorf("httpPort must be set, check .env file")
+	cfg.EmailSenderConfig = EmailSenderConfig{
+		SMTPHost:     cfg.SMTP.Host,
+		SMTPPort:     cfg.SMTP.Port,
+		SMTPUser:     cfg.SMTP.User,
+		SMTPPassword: cfg.SMTP.Password,
+	}
+	cfg.TelegramSenderConfig = TelegramSenderConfig{
+		BotToken: cfg.Telegram.BotToken,
 	}
 
-	staticFilesPath := os.Getenv("staticFilesPath")
-	if strings.TrimSpace(staticFilesPath) == "" {
-		return nil, fmt.Errorf("staticFilesPath must be set, check .env file")
+	if err := Validate.Struct(cfg); err != nil {
+		return nil, fmt.Errorf("config validation failed: %w", err)
 	}
 
-	// SMTP конфигурация
-	smtpHost := os.Getenv("smtpHost")
-	smtpPort := os.Getenv("smtpPort")
-	smtpUser := os.Getenv("smtpUser")
-	smtpPassword := os.Getenv("smtpPassword")
-
-	// Telegram конфигурация
-	tgBotToken := os.Getenv("tgBotToken")
-
-	return &Config{
-		HTTPHost:        httpHost,
-		HTTPPort:        httpPort,
-		StaticFilesPath: staticFilesPath,
-		SMTPHost:        smtpHost,
-		SMTPPort:        smtpPort,
-		SMTPUser:        smtpUser,
-		SMTPPassword:    smtpPassword,
-		TgBotToken:      tgBotToken,
-	}, nil
+	return &cfg, nil
 }
 
-func (c *Config) GetServerAddress() string {
-	return fmt.Sprintf("%s:%s", c.HTTPHost, c.HTTPPort)
-}
+func readEnvConfig(dst any) error {
+	const envFile = ".env"
 
-func (c *Config) GetStaticFilesPath() string {
-	return c.StaticFilesPath
-}
+	if _, err := os.Stat(envFile); err == nil {
+		return cleanenv.ReadConfig(envFile, dst)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("stat %s: %w", envFile, err)
+	}
 
-// GetSMTPConfig возвращает SMTP конфигурацию
-func (c *Config) GetSMTPConfig() (host, port, user, password string) {
-	return c.SMTPHost, c.SMTPPort, c.SMTPUser, c.SMTPPassword
-}
-
-// GetTgBotToken возвращает токен Telegram бота
-func (c *Config) GetTgBotToken() string {
-	return c.TgBotToken
-}
-
-// IsEmailConfigured проверяет настроена ли email отправка
-func (c *Config) IsEmailConfigured() bool {
-	return strings.TrimSpace(c.SMTPHost) != "" &&
-		strings.TrimSpace(c.SMTPPort) != "" &&
-		strings.TrimSpace(c.SMTPUser) != "" &&
-		strings.TrimSpace(c.SMTPPassword) != ""
-}
-
-// IsTelegramConfigured проверьте настроена ли Telegram отправка
-func (c *Config) IsTelegramConfigured() bool {
-	return strings.TrimSpace(c.TgBotToken) != ""
+	return cleanenv.ReadEnv(dst)
 }

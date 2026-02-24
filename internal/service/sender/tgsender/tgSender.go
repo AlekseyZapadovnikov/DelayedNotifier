@@ -1,4 +1,4 @@
-package sender
+package tgsend
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/AlekseyZapadovnikov/DelayedNotifier/config"
 	"github.com/AlekseyZapadovnikov/DelayedNotifier/internal/models"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -15,7 +16,13 @@ type TgSender struct {
 }
 
 // NewTgSender создает новый экземпляр Telegram отправителя
-func NewTgSender(botToken string) (*TgSender, error) {
+// NewTgSender создает новый экземпляр Telegram отправителя
+func NewTgSender(cfg config.TelegramSenderConfig) (*TgSender, error) {
+	botToken := strings.TrimSpace(cfg.BotToken)
+	if botToken == "" {
+		return nil, fmt.Errorf("botToken cannot be empty")
+	}
+
 	bot, err := tgbotapi.NewBotAPI(botToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Telegram bot: %w", err)

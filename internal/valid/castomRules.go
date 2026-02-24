@@ -6,7 +6,6 @@ import (
 	"strings"
 )
 
-
 func ValidateEmail(value string) bool {
 	// Проверка email через стандартную библиотеку
 	if _, err := mail.ParseAddress(value); err == nil {
@@ -14,7 +13,6 @@ func ValidateEmail(value string) bool {
 	}
 	return false
 }
-
 
 // Проверка Telegram username:
 // - начинается с @
@@ -35,5 +33,5 @@ func validateTg(userName string) bool {
 }
 
 func ValidateEmailOrTg(val string) bool {
-	return ValidateEmail(val) && validateTg(val)
+	return ValidateEmail(val) || validateTg(val)
 }

@@ -24,7 +24,6 @@ func validatePortWrap(fl validator.FieldLevel) bool {
 	return port > 0 && port <= 65535
 }
 
-
 // проверяет валидность адресов/userna`ов, на которые отправляются сооющения
 func validateToField(fl validator.FieldLevel) bool {
 	field := fl.Field()

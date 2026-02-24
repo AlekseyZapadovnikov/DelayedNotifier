@@ -1,0 +1,41 @@
+template: testify
+pkgname: mocks
+dir: ./mocks
+filename: "mocks_{{.SrcPackageName}}.go"
+structname: "Mock{{.InterfaceName}}"
+all: false
+force-file-write: true
+formatter: goimports
+log-level: info
+
+packages:
+  github.com/AlekseyZapadovnikov/DelayedNotifier/internal/app:
+    interfaces:
+      Closer: {}
+
+  github.com/AlekseyZapadovnikov/DelayedNotifier/internal/cache:
+    interfaces:
+      NotificationRepository:
+        config:
+          structname: MockCacheNotificationRepository
+
+  github.com/AlekseyZapadovnikov/DelayedNotifier/internal/repository:
+    interfaces:
+      NotificationRepository:
+        config:
+          structname: MockRepositoryNotificationRepository
+
+  github.com/AlekseyZapadovnikov/DelayedNotifier/internal/service/notify:
+    interfaces:
+      NotificationCache: {}
+      DeleadQueue: {}
+
+  github.com/AlekseyZapadovnikov/DelayedNotifier/internal/service/sender:
+    interfaces:
+      Sender: {}
+
+  github.com/AlekseyZapadovnikov/DelayedNotifier/internal/web:
+    interfaces:
+      Configer: {}
+      NotifydService: {}
+

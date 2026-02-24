@@ -13,19 +13,19 @@ func init() {
 func setupValidator() *validator.Validate {
 	v := validator.New()
 
-	registerValidationWrap("tg", validateTgWrap)
-	registerValidationWrap("port", validatePortWrap)
+	registerValidationWrap(v, "tg", validateTgWrap)
+	registerValidationWrap(v, "port", validatePortWrap)
+	registerValidationWrap(v, "valid_port", validatePortWrap)
 
-	registerValidationWrap("to_field", validateToField)
-	registerValidationWrap("from_field", validateFromField)
+	registerValidationWrap(v, "to_field", validateToField)
+	registerValidationWrap(v, "from_field", validateFromField)
 
 	return v
 }
 
-func registerValidationWrap(tag string, fn validator.Func) {
-	err := Validate.RegisterValidation(tag, fn)
+func registerValidationWrap(v *validator.Validate, tag string, fn validator.Func) {
+	err := v.RegisterValidation(tag, fn)
 	if err != nil {
-		msg := "validator wasn`t setup correctly" + err.Error()
-		panic(msg)
+		panic("validator wasn't set up correctly: " + err.Error())
 	}
 }

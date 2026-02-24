@@ -15,19 +15,19 @@ func init() {
 }
 
 type Record struct {
-	id       int64
+	Id       int64
 	Data     []byte
 	SendTime time.Time
-	RecStat  string   `validate:"oneof=sended waiting redused"`
-	SendChan string   `validate:"oneof=tg mail"`
-	From     string   `validate:"from_field"`
-	To       []string `validate:"to_field"`
-	Subject  string   `validate:"len<200"`
+	RecStat  RecordStatus `validate:"oneof=sended waiting redused"`
+	SendChan string       `validate:"oneof=tg mail"`
+	From     string       `validate:"from_field"`
+	To       []string     `validate:"to_field"`
+	Subject  string       `validate:"len<200"`
 }
 
 func NewRecord(id int64, data []byte, sendTime time.Time, subject, sendChan, from string, to []string) *Record {
 	return &Record{
-		id:       id,
+		Id:       id,
 		Data:     data,
 		SendTime: sendTime,
 		RecStat:  RecordStatusWaiting,
@@ -38,7 +38,7 @@ func NewRecord(id int64, data []byte, sendTime time.Time, subject, sendChan, fro
 	}
 }
 
-func (r *Record) SetStatus(newStatus string) error {
+func (r *Record) SetStatus(newStatus RecordStatus) error {
 	err := Validate.Var(newStatus, "oneof=sended waiting redused")
 	if err != nil {
 		return fmt.Errorf("you try to set invalid status, status may be only one of (sended, waiting, redused)")
@@ -47,10 +47,13 @@ func (r *Record) SetStatus(newStatus string) error {
 	return nil
 }
 
+type RecordStatus string
+
 const (
-	RecordStatusSended  = "sended"
-	RecordStatusWaiting = "waiting"
-	RecordStatusRedused = "redused"
+	RecordStatusSended  RecordStatus = "sended"
+	RecordStatusWaiting RecordStatus = "waiting"
+	RecordStatusRedused RecordStatus = "redused"
+
+	SendChanTG   = "tg"
+	SendChanMail = "mail"
 )
-
-
